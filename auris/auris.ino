@@ -1,0 +1,241 @@
+// ESP32/ESP32-C3 + 2x INMP441 (I2S RX estéreo) -> UDP PCM16 interleaved (L,R,...)
+// Conecta em Wi-Fi doméstico (STA) e espera handshake "HELLO_AURIS" para começar a enviar.
+
+#include <WiFi.h>
+#include <WiFiUdp.h>
+#include "driver/i2s.h"
+#include "Display.h"
+
+// ======= Wi-Fi doméstico =======
+#define HOME_SSID "andre"
+#define HOME_PASS "mariana04112021"
+
+// AP
+
+#define AP_SSID "AURIS"
+#define AP_PASS "AURIS123"
+
+// ======= Áudio / I2S =======
+#define SAMPLE_RATE_HZ 16000
+
+// Tamanho do pacote UDP em AMOSTRAS INT16 interleaved (L,R). 512 amostras = 256 frames.
+#define CHUNK_SAMPLES 512 // múltiplo de 2
+
+// Pinos do I2S (entrada)
+#define PIN_I2S_DATA 4  // DIN / SD
+#define PIN_I2S_LRCLK 3 // WS / LRC
+#define PIN_I2S_BCLK 2  // SCK / BCLK
+
+// ======= UDP =======
+#define CONNECT_MESSAGE "HELLO_AURIS"
+const int udpPort = 4210;
+
+WiFiUDP udp;
+IPAddress clientIP;
+bool clientConnected = false;
+
+// ======= Buffers =======
+static const size_t FRAMES_PER_PACKET = CHUNK_SAMPLES / 2;  // 512 int16 -> 256 frames
+static const size_t I2S_IN32_COUNT = FRAMES_PER_PACKET * 2; // L32,R32,...
+static const size_t I2S_IN32_BYTES = I2S_IN32_COUNT * sizeof(int32_t);
+
+int32_t i2s_in[I2S_IN32_COUNT]; // entrada 32-bit (24b válidos)
+int16_t pcm_out[CHUNK_SAMPLES]; // saída 16-bit interleaved (L,R,...)
+
+#define HEADROOM_SHIFT 0 // 0..2 (mais alto = mais headroom, menos volume)
+
+inline int16_t s32_to_s16(int32_t s32)
+{
+  // s32: 24 bits úteis em [31..8]
+  int32_t v = s32 >> (12 + HEADROOM_SHIFT); // 16 é o correto; +headroom se quiser
+  if (v > 32767)
+    v = 32767;
+  if (v < -32768)
+    v = -32768;
+  return (int16_t)v;
+}
+
+void sendPCMUDP(int16_t *buffer, size_t sampleCount)
+{
+  if (!clientConnected || sampleCount == 0)
+    return;
+
+  size_t offset = 0;
+  while (offset < sampleCount)
+  {
+    size_t toSend = min((size_t)CHUNK_SAMPLES, sampleCount - offset);
+    udp.beginPacket(clientIP, udpPort);
+    udp.write((uint8_t *)(buffer + offset), toSend * sizeof(int16_t));
+    udp.endPacket();
+    offset += toSend;
+  }
+}
+
+// ======= I2S =======
+static const i2s_port_t I2S_PORT = I2S_NUM_0;
+
+void setupI2S()
+{
+  i2s_config_t cfg = {
+      .mode = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX),
+      .sample_rate = SAMPLE_RATE_HZ,
+      .bits_per_sample = I2S_BITS_PER_SAMPLE_32BIT, // 24b em 32
+      .channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT,
+      .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+      .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
+      .dma_buf_count = 8,
+      .dma_buf_len = 256, // frames por buffer DMA
+      .use_apll = false,
+      .tx_desc_auto_clear = false,
+      .fixed_mclk = 0};
+
+  i2s_pin_config_t pin = {
+      .mck_io_num = I2S_PIN_NO_CHANGE,
+      .bck_io_num = PIN_I2S_BCLK,
+      .ws_io_num = PIN_I2S_LRCLK,
+      .data_out_num = I2S_PIN_NO_CHANGE,
+      .data_in_num = PIN_I2S_DATA};
+
+  i2s_driver_install(I2S_PORT, &cfg, 0, NULL);
+  i2s_set_pin(I2S_PORT, &pin);
+  i2s_set_clk(I2S_PORT, SAMPLE_RATE_HZ, I2S_BITS_PER_SAMPLE_32BIT, I2S_CHANNEL_STEREO);
+}
+
+// ======= Wi-Fi (STA) =======
+void connectWiFiSTA()
+{
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(HOME_SSID, HOME_PASS);
+
+  Serial.print("Conectando a ");
+  Serial.print(HOME_SSID);
+  Serial.print(" ...");
+
+  uint32_t t0 = millis();
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    Serial.print(".");
+    if (millis() - t0 > 20000)
+    { // 20s timeout -> recomeça
+      Serial.println("\nTimeout. Reiniciando tentativa...");
+      WiFi.disconnect(true);
+      delay(1000);
+      WiFi.begin(HOME_SSID, HOME_PASS);
+      t0 = millis();
+    }
+  }
+  Serial.println();
+  Serial.print("Wi-Fi conectado. IP: ");
+  Serial.println(WiFi.localIP());
+
+  // (opcional) mDNS para descobrir "auris.local"
+  //  if (MDNS.begin("auris")) {
+  //    Serial.println("mDNS iniciado: auris.local");
+  //  } else {
+  //    Serial.println("Falha ao iniciar mDNS");
+  //  }
+}
+
+// ======= Funções Wi-Fi =======
+void setupAP()
+{
+  while (!WiFi.softAP(AP_SSID, AP_PASS))
+  {
+    Serial.println("Falha ao iniciar AP, tentando de novo...");
+    delay(1000);
+  }
+  Serial.println("AP iniciado");
+  Serial.print("IP do AP: ");
+  Serial.println(WiFi.softAPIP());
+  udp.begin(udpPort); // necessário para receber o HELLO_AURIS
+}
+
+// Aguarda HELLO_AURIS de qualquer cliente na LAN.
+// Dica: envie HELLO_AURIS como broadcast 255.255.255.255:4210 a partir do desktop/app.
+void waitForClient()
+{
+  Serial.println("Aguardando HELLO_AURIS de um cliente...");
+  while (!clientConnected)
+  {
+    int pkt = udp.parsePacket();
+    if (pkt > 0)
+    {
+      char buf[256];
+      int len = udp.read(buf, sizeof(buf) - 1);
+      if (len > 0)
+      {
+        buf[len] = 0;
+        if (strcmp(buf, CONNECT_MESSAGE) == 0)
+        {
+          clientIP = udp.remoteIP();
+          clientConnected = true;
+          Serial.print("Cliente conectado: ");
+          Serial.println(clientIP);
+        }
+      }
+    }
+    delay(50);
+  }
+}
+
+void receiveLabelUDP() {
+  int pktSize = udp.parsePacket();
+  if (pktSize > 0) {
+    char buf[128];
+    int len = udp.read(buf, sizeof(buf) - 1);
+    if (len > 0) {
+      buf[len] = 0; // null-terminate
+      Serial.printf("Recebi do app: %s\n", buf);
+
+      // Mostra no display o que veio
+      DisplayWrite(String(buf));
+    }
+  }
+}
+
+// ======= Arduino =======
+void setup()
+{
+  Serial.begin(115200);
+  delay(200);
+
+  DisplayInit();
+
+  // connectWiFiSTA();
+  setupAP();
+
+  // Abre socket UDP local (escutar HELLO)
+  udp.begin(udpPort);
+  Serial.print("Escutando UDP porta ");
+  Serial.println(udpPort);
+
+  waitForClient();
+  setupI2S();
+
+  Serial.println("Captura I2S estéreo iniciada. Transmitindo UDP...");
+}
+
+void loop()
+{
+  if (!clientConnected)
+  {
+    delay(50);
+    return;
+  }
+
+  // lê um "pacote" de frames do I2S e envia
+  size_t bytesRead = 0;
+  esp_err_t err = i2s_read(I2S_PORT, (void *)i2s_in, I2S_IN32_BYTES, &bytesRead, portMAX_DELAY);
+  if (err != ESP_OK || bytesRead == 0)
+    return;
+
+  const size_t samples32 = bytesRead / sizeof(int32_t);
+  for (size_t i = 0; i < samples32; i++)
+  {
+    pcm_out[i] = s32_to_s16(i2s_in[i]);
+  }
+  sendPCMUDP(pcm_out, samples32);
+
+  receiveLabelUDP();
+}
