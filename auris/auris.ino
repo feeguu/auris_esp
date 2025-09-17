@@ -195,6 +195,7 @@ void receiveMessage()
         Serial.printf("packet desconhecido\n");
         break;
       }
+      ProtocolDeallocatePacket(packet);
     }
   }
 }
@@ -247,5 +248,4 @@ void loop()
     pcm_out[i] = s32_to_s16(i2s_in[i]);
   }
   sendPCMUDP(pcm_out, samples32);
-
 }

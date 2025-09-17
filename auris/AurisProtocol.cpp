@@ -31,3 +31,12 @@ AurisPacket ProtocolHandlePacket(char *data)
 
   return packet;
 }
+
+void ProtocolDeallocatePacket(AurisPacket &packet)
+{
+  if (packet.payload != nullptr)
+  {
+    delete[] packet.payload;
+    packet.payload = nullptr;
+  }
+}

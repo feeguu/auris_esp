@@ -24,5 +24,6 @@ typedef struct AurisPacket
 };
 
 AurisPacket ProtocolHandlePacket(char *data);
+void ProtocolDeallocatePacket(AurisPacket &packet);
 
 #endif // AURIS_PROTOCOL_H
