@@ -5,6 +5,9 @@
 #include <WiFiUdp.h>
 #include "driver/i2s.h"
 #include "Display.h"
+#include "AurisConfig.h"
+#include "AurisEEPROM.h"
+#include "AurisProtocol.h"
 
 // ======= Wi-Fi doméstico =======
 #define HOME_SSID "andre"
@@ -12,7 +15,7 @@
 
 // AP
 
-#define AP_SSID "AURIS"
+#define AP_SSID "andre"
 #define AP_PASS "AURIS123"
 
 // ======= Áudio / I2S =======
@@ -151,48 +154,52 @@ void setupAP()
   udp.begin(udpPort); // necessário para receber o HELLO_AURIS
 }
 
-// Aguarda HELLO_AURIS de qualquer cliente na LAN.
-// Dica: envie HELLO_AURIS como broadcast 255.255.255.255:4210 a partir do desktop/app.
-void waitForClient()
+void receiveMessage()
 {
-  Serial.println("Aguardando HELLO_AURIS de um cliente...");
-  while (!clientConnected)
+  int pktSize = udp.parsePacket();
+  if (pktSize > 0)
   {
-    int pkt = udp.parsePacket();
-    if (pkt > 0)
+    Serial.printf("Pacote UDP recebido %d bytes\n", pktSize);
+    char buf[256];
+    int len = udp.read(buf, sizeof(buf) - 1);
+    buf[len] = '\0';
+    if (len > 0)
     {
-      char buf[256];
-      int len = udp.read(buf, sizeof(buf) - 1);
-      if (len > 0)
+      AurisPacket packet = ProtocolHandlePacket(buf);
+      Serial.printf("Tipo do pacote: %d, Tamanho: %d\n", packet.header.type, packet.header.length);
+      switch (packet.header.type)
       {
-        buf[len] = 0;
-        if (strcmp(buf, CONNECT_MESSAGE) == 0)
+      case HANDSHAKE_TYPE:
+        Serial.printf("Handshake recebido\n");
+        if (!clientConnected)
         {
+          Serial.println("Cliente conectado\n");
           clientIP = udp.remoteIP();
           clientConnected = true;
-          Serial.print("Cliente conectado: ");
-          Serial.println(clientIP);
         }
+        break;
+      case LABEL_TYPE:
+        Serial.printf("Label: %s\n", (char *)packet.payload);
+        DisplayWrite((char *)packet.payload);
+        break;
+      case CONFIG_TYPE:
+        Serial.printf("Config recebido\n");
+        UpdateConfig(packet);
+        break;
+      case RESTART_TYPE:
+        Serial.printf("Reiniciando por comando\n");
+        ESP.restart();
+        break;
+
+      default:
+        Serial.printf("packet desconhecido\n");
+        break;
       }
     }
-    delay(50);
   }
 }
 
-void receiveLabelUDP() {
-  int pktSize = udp.parsePacket();
-  if (pktSize > 0) {
-    char buf[128];
-    int len = udp.read(buf, sizeof(buf) - 1);
-    if (len > 0) {
-      buf[len] = 0; // null-terminate
-      Serial.printf("Recebi do app: %s\n", buf);
-
-      // Mostra no display o que veio
-      DisplayWrite(String(buf));
-    }
-  }
-}
+AurisConfig config;
 
 // ======= Arduino =======
 void setup()
@@ -200,17 +207,20 @@ void setup()
   Serial.begin(115200);
   delay(200);
 
+  EEPROMInit();
+
+  LoadConfig(config);
+
   DisplayInit();
 
-  // connectWiFiSTA();
-  setupAP();
+  connectWiFiSTA();
+  // setupAP();
 
   // Abre socket UDP local (escutar HELLO)
   udp.begin(udpPort);
   Serial.print("Escutando UDP porta ");
   Serial.println(udpPort);
 
-  waitForClient();
   setupI2S();
 
   Serial.println("Captura I2S estéreo iniciada. Transmitindo UDP...");
@@ -218,6 +228,7 @@ void setup()
 
 void loop()
 {
+  receiveMessage();
   if (!clientConnected)
   {
     delay(50);
@@ -237,5 +248,4 @@ void loop()
   }
   sendPCMUDP(pcm_out, samples32);
 
-  receiveLabelUDP();
 }
