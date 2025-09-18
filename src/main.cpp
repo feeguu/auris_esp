@@ -1,6 +1,7 @@
 // ESP32/ESP32-C3 + 2x INMP441 (I2S RX estéreo) -> UDP PCM16 interleaved (L,R,...)
 // Conecta em Wi-Fi doméstico (STA) e espera handshake "HELLO_AURIS" para começar a enviar.
 
+#include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include "driver/i2s.h"
@@ -10,12 +11,12 @@
 #include "AurisProtocol.h"
 
 // ======= Wi-Fi doméstico =======
-#define HOME_SSID "andre"
-#define HOME_PASS "mariana04112021"
+#define HOME_SSID "kayky"
+#define HOME_PASS "Kayky1234509876"
 
 // AP
 
-#define AP_SSID "andre"
+#define AP_SSID "AURIS"
 #define AP_PASS "AURIS123"
 
 // ======= Áudio / I2S =======
@@ -104,45 +105,23 @@ void setupI2S()
   i2s_set_clk(I2S_PORT, SAMPLE_RATE_HZ, I2S_BITS_PER_SAMPLE_32BIT, I2S_CHANNEL_STEREO);
 }
 
-// ======= Wi-Fi (STA) =======
-void connectWiFiSTA()
-{
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(HOME_SSID, HOME_PASS);
-
-  Serial.print("Conectando a ");
-  Serial.print(HOME_SSID);
-  Serial.print(" ...");
-
-  uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-    if (millis() - t0 > 20000)
-    { // 20s timeout -> recomeça
-      Serial.println("\nTimeout. Reiniciando tentativa...");
-      WiFi.disconnect(true);
-      delay(1000);
-      WiFi.begin(HOME_SSID, HOME_PASS);
-      t0 = millis();
-    }
+// ======= Funções Wi-Fi =======
+const char* getWiFiStatusString(wl_status_t status) {
+  switch(status) {
+    case WL_IDLE_STATUS: return "IDLE";
+    case WL_NO_SSID_AVAIL: return "NO_SSID_AVAILABLE";
+    case WL_SCAN_COMPLETED: return "SCAN_COMPLETED";
+    case WL_CONNECTED: return "CONNECTED";
+    case WL_CONNECT_FAILED: return "CONNECT_FAILED";
+    case WL_CONNECTION_LOST: return "CONNECTION_LOST";
+    case WL_DISCONNECTED: return "DISCONNECTED";
+    default: return "UNKNOWN";
   }
-  Serial.println();
-  Serial.print("Wi-Fi conectado. IP: ");
-  Serial.println(WiFi.localIP());
-
-  // (opcional) mDNS para descobrir "auris.local"
-  //  if (MDNS.begin("auris")) {
-  //    Serial.println("mDNS iniciado: auris.local");
-  //  } else {
-  //    Serial.println("Falha ao iniciar mDNS");
-  //  }
 }
 
-// ======= Funções Wi-Fi =======
 void setupAP()
 {
+  WiFi.mode(WIFI_AP);
   while (!WiFi.softAP(AP_SSID, AP_PASS))
   {
     Serial.println("Falha ao iniciar AP, tentando de novo...");
@@ -152,6 +131,69 @@ void setupAP()
   Serial.print("IP do AP: ");
   Serial.println(WiFi.softAPIP());
   udp.begin(udpPort); // necessário para receber o HELLO_AURIS
+}
+
+void connectWiFiSTA()
+{
+  // Desconecta e limpa configurações anteriores
+  WiFi.disconnect(true);
+  delay(100);
+  
+  WiFi.mode(WIFI_STA);
+  delay(100);
+  
+  Serial.print("Conectando a ");
+  Serial.print(HOME_SSID);
+  Serial.println("...");
+  
+  // Configurações adicionais para melhorar a conexão
+  WiFi.setAutoConnect(true);
+  WiFi.setAutoReconnect(true);
+  
+  WiFi.begin(HOME_SSID, HOME_PASS);
+
+  uint32_t t0 = millis();
+  int attempts = 0;
+  const int maxAttempts = 3;
+  const uint32_t timeoutMs = 20000; // 20 segundos
+  
+  while (millis() - t0 < timeoutMs && WiFi.status() != WL_CONNECTED)
+  { 
+    delay(500);
+    Serial.print(".");
+    
+    // A cada 5 segundos, tenta reconectar se necessário
+    if ((millis() - t0) % 5000 < 500 && attempts < maxAttempts) {
+      wl_status_t status = WiFi.status();
+      Serial.printf("\nStatus WiFi: %s (%d) ", getWiFiStatusString(status), status);
+      
+      if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST || status == WL_DISCONNECTED) {
+        Serial.printf("(tentativa %d/%d)\n", attempts + 1, maxAttempts);
+        WiFi.disconnect();
+        delay(100);
+        WiFi.begin(HOME_SSID, HOME_PASS);
+        attempts++;
+      }
+    }
+  }
+
+  if(WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nConectado!");
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.print("RSSI: ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
+    DisplayWrite("WiFi OK");
+    
+    // Inicia UDP apenas quando conectado
+    udp.begin(udpPort);
+  } else {
+    Serial.println("\nFalha na conexão WiFi");
+    Serial.printf("Status final: %s (%d)\n", getWiFiStatusString(WiFi.status()), WiFi.status());
+    Serial.println("Fallback para AP");
+    setupAP();
+  }
 }
 
 void receiveMessage()
@@ -217,8 +259,8 @@ void setup()
   connectWiFiSTA();
   // setupAP();
 
-  // Abre socket UDP local (escutar HELLO)
-  udp.begin(udpPort);
+  // UDP será iniciado automaticamente em connectWiFiSTA() se conectar
+  // ou em setupAP() se fazer fallback para AP
   Serial.print("Escutando UDP porta ");
   Serial.println(udpPort);
 
