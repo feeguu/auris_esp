@@ -5,6 +5,7 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <string>
 
 // ===== Configurações do display =====
 #define SCREEN_WIDTH 128
@@ -16,6 +17,6 @@
 extern Adafruit_SSD1306 display;
 
 void DisplayInit();
-void DisplayWrite(const String &text);
+void DisplayWrite(std::string text);
 
 #endif

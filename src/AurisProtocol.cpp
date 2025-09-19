@@ -21,7 +21,8 @@ AurisPacket ProtocolHandlePacket(char *data)
   // Validate length
   if (packet.header.length > 0 && packet.header.length <= 1024) // Arbitrary max length
   {
-    packet.payload = new uint8_t[packet.header.length];
+    packet.payload = new uint8_t[packet.header.length + 1];
+    packet.payload[packet.header.length] = '\0'; // Null-terminate for safety
     memcpy(packet.payload, data + sizeof(AurisPacketHeader), packet.header.length);
   }
   else

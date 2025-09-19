@@ -18,7 +18,7 @@ void DisplayInit()
   display.display();
 }
 
-void DisplayWrite(const String &text)
+void DisplayWrite(std::string text)
 {
   display.clearDisplay();
 
@@ -27,13 +27,13 @@ void DisplayWrite(const String &text)
 
   int16_t x1, y1;
   uint16_t w, h;
-  display.getTextBounds(text, 0, 0, &x1, &y1, &w, &h);
+  display.getTextBounds(text.c_str(), 0, 0, &x1, &y1, &w, &h);
 
   int16_t x = (SCREEN_WIDTH - w) / 2;
   int16_t y = (SCREEN_HEIGHT - h) / 2;
 
   display.setCursor(x, y);
-  display.print(text);
+  display.println(text.c_str());
 
   display.display();
 }

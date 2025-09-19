@@ -222,7 +222,7 @@ void receiveMessage()
         break;
       case LABEL_TYPE:
         Serial.printf("Label: %s\n", (char *)packet.payload);
-        DisplayWrite((char *)packet.payload);
+        DisplayWrite((char *) packet.payload);
         break;
       case CONFIG_TYPE:
         Serial.printf("Config recebido\n");
