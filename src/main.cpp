@@ -11,8 +11,8 @@
 #include "AurisProtocol.h"
 
 // ======= Wi-Fi doméstico =======
-#define HOME_SSID "kayky"
-#define HOME_PASS "Kayky1234509876"
+#define HOME_SSID "andre"
+#define HOME_PASS "mariana04112021"
 
 // AP
 
@@ -51,7 +51,7 @@ int16_t pcm_out[CHUNK_SAMPLES]; // saída 16-bit interleaved (L,R,...)
 inline int16_t s32_to_s16(int32_t s32)
 {
   // s32: 24 bits úteis em [31..8]
-  int32_t v = s32 >> (12 + HEADROOM_SHIFT); // 16 é o correto; +headroom se quiser
+  int32_t v = s32 >> (10 + HEADROOM_SHIFT);
   if (v > 32767)
     v = 32767;
   if (v < -32768)
@@ -106,16 +106,26 @@ void setupI2S()
 }
 
 // ======= Funções Wi-Fi =======
-const char* getWiFiStatusString(wl_status_t status) {
-  switch(status) {
-    case WL_IDLE_STATUS: return "IDLE";
-    case WL_NO_SSID_AVAIL: return "NO_SSID_AVAILABLE";
-    case WL_SCAN_COMPLETED: return "SCAN_COMPLETED";
-    case WL_CONNECTED: return "CONNECTED";
-    case WL_CONNECT_FAILED: return "CONNECT_FAILED";
-    case WL_CONNECTION_LOST: return "CONNECTION_LOST";
-    case WL_DISCONNECTED: return "DISCONNECTED";
-    default: return "UNKNOWN";
+const char *getWiFiStatusString(wl_status_t status)
+{
+  switch (status)
+  {
+  case WL_IDLE_STATUS:
+    return "IDLE";
+  case WL_NO_SSID_AVAIL:
+    return "NO_SSID_AVAILABLE";
+  case WL_SCAN_COMPLETED:
+    return "SCAN_COMPLETED";
+  case WL_CONNECTED:
+    return "CONNECTED";
+  case WL_CONNECT_FAILED:
+    return "CONNECT_FAILED";
+  case WL_CONNECTION_LOST:
+    return "CONNECTION_LOST";
+  case WL_DISCONNECTED:
+    return "DISCONNECTED";
+  default:
+    return "UNKNOWN";
   }
 }
 
@@ -138,36 +148,38 @@ void connectWiFiSTA()
   // Desconecta e limpa configurações anteriores
   WiFi.disconnect(true);
   delay(100);
-  
+
   WiFi.mode(WIFI_STA);
   delay(100);
-  
+
   Serial.print("Conectando a ");
   Serial.print(HOME_SSID);
   Serial.println("...");
-  
+
   // Configurações adicionais para melhorar a conexão
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
-  
+
   WiFi.begin(HOME_SSID, HOME_PASS);
 
   uint32_t t0 = millis();
   int attempts = 0;
   const int maxAttempts = 3;
   const uint32_t timeoutMs = 20000; // 20 segundos
-  
+
   while (millis() - t0 < timeoutMs && WiFi.status() != WL_CONNECTED)
-  { 
+  {
     delay(500);
     Serial.print(".");
-    
+
     // A cada 5 segundos, tenta reconectar se necessário
-    if ((millis() - t0) % 5000 < 500 && attempts < maxAttempts) {
+    if ((millis() - t0) % 5000 < 500 && attempts < maxAttempts)
+    {
       wl_status_t status = WiFi.status();
       Serial.printf("\nStatus WiFi: %s (%d) ", getWiFiStatusString(status), status);
-      
-      if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST || status == WL_DISCONNECTED) {
+
+      if (status == WL_CONNECT_FAILED || status == WL_CONNECTION_LOST || status == WL_DISCONNECTED)
+      {
         Serial.printf("(tentativa %d/%d)\n", attempts + 1, maxAttempts);
         WiFi.disconnect();
         delay(100);
@@ -177,7 +189,8 @@ void connectWiFiSTA()
     }
   }
 
-  if(WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     Serial.println("\nConectado!");
     Serial.print("IP: ");
     Serial.println(WiFi.localIP());
@@ -185,10 +198,12 @@ void connectWiFiSTA()
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
     DisplayWrite("WiFi OK");
-    
+
     // Inicia UDP apenas quando conectado
     udp.begin(udpPort);
-  } else {
+  }
+  else
+  {
     Serial.println("\nFalha na conexão WiFi");
     Serial.printf("Status final: %s (%d)\n", getWiFiStatusString(WiFi.status()), WiFi.status());
     Serial.println("Fallback para AP");
@@ -213,16 +228,14 @@ void receiveMessage()
       {
       case HANDSHAKE_TYPE:
         Serial.printf("Handshake recebido\n");
-        if (!clientConnected)
-        {
-          Serial.println("Cliente conectado\n");
-          clientIP = udp.remoteIP();
-          clientConnected = true;
-        }
+        Serial.println("Cliente conectado\n");
+        clientIP = udp.remoteIP();
+        clientConnected = true;
+
         break;
       case LABEL_TYPE:
         Serial.printf("Label: %s\n", (char *)packet.payload);
-        DisplayWrite((char *) packet.payload);
+        DisplayWrite((char *)packet.payload);
         break;
       case CONFIG_TYPE:
         Serial.printf("Config recebido\n");
