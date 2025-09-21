@@ -4,12 +4,23 @@
 #include "AurisProtocol.h"
 #include "AurisConfig.h"
 
-typedef struct
+#include <string>
+
+#define MAX_SSID_LENGTH 32
+#define MAX_PASSWORD_LENGTH 64
+#define MAX_LANGUAGE_LENGTH 8
+#define MAX_VERSION_LENGTH 16
+#define MAX_URL_LENGTH 128
+
+typedef struct __attribute__((packed))
 {
-  char ssid[32];
-  char password[64];
-  char language[3];
+  char ssid[MAX_SSID_LENGTH];
+  char password[MAX_PASSWORD_LENGTH];
+  char language[MAX_LANGUAGE_LENGTH];
   uint8_t font_size;
+  char version[MAX_VERSION_LENGTH];
+  char firmware_url[MAX_URL_LENGTH];
+  bool captions_enabled;
 } AurisConfig;
 
 bool UpdateConfig(AurisPacket &packet);

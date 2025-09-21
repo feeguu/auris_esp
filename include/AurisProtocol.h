@@ -9,7 +9,8 @@ enum AurisPacketType : uint32_t
   LABEL_TYPE = 0x02,
   CONFIG_TYPE = 0x03,
   RESTART_TYPE = 0x04,
-  CAPTIONS_TYPE = 0x05
+  CAPTIONS_TYPE = 0x05,
+  GET_CONFIG = 0x06
 };
 
 typedef struct AurisPacketHeader

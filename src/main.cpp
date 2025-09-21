@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <cstring>
 #include "driver/i2s.h"
 #include "Display.h"
 #include "AurisConfig.h"
@@ -212,6 +213,8 @@ void connectWiFiSTA()
   }
 }
 
+AurisConfig config;
+
 void receiveMessage()
 {
   int pktSize = udp.parsePacket();
@@ -233,6 +236,13 @@ void receiveMessage()
         clientIP = udp.remoteIP();
         clientConnected = true;
 
+        // Envia um ack
+        {
+          udp.beginPacket(clientIP, udpPort);
+          const char *ack = "HELLO_AURIS_ACK";
+          udp.write((uint8_t *)ack, strlen(ack));
+          udp.endPacket();
+        }
         break;
       case LABEL_TYPE:
         DisplayClear();
@@ -252,6 +262,19 @@ void receiveMessage()
         DisplayWrite("Fala", 4, 0);
         DisplayCenteredWrite((char *)packet.payload);
         break;
+      case GET_CONFIG:
+      {
+        // serializa config e envia
+        uint32_t size = sizeof(AurisConfig);
+        Serial.printf("Enviando config (%d bytes)\n", size);
+        uint8_t *data = new uint8_t[size];
+        memcpy(data, &config, size);
+        udp.beginPacket(clientIP, udpPort);
+        udp.write(data, size);
+        udp.endPacket();
+        delete[] data;
+        break;
+      }
       default:
         Serial.printf("packet desconhecido\n");
         break;
@@ -261,7 +284,15 @@ void receiveMessage()
   }
 }
 
-AurisConfig config;
+void sendAliveToBroadcast()
+{
+  IPAddress broadcastIP = WiFi.localIP();
+  broadcastIP[3] = 255; // último octeto para 255
+  udp.beginPacket(broadcastIP, udpPort);
+  const char *alive = "AURIS_ALIVE";
+  udp.write((uint8_t *)alive, strlen(alive));
+  udp.endPacket();
+}
 
 // ======= Arduino =======
 void setup()
@@ -273,10 +304,19 @@ void setup()
 
   LoadConfig(config);
 
+  Serial.println("Configurações carregadas:");
+  Serial.printf("SSID: %s\n", config.ssid);
+  Serial.printf("Senha: %s\n", config.password);
+  Serial.printf("Idioma: %s\n", config.language);
+  Serial.printf("Tamanho da fonte: %d\n", config.font_size);
+  Serial.printf("Versão: %s\n", config.version);
+  Serial.printf("URL firmware: %s\n", config.firmware_url);
+
   DisplayInit();
 
   connectWiFiSTA();
   // setupAP();
+  sendAliveToBroadcast();
 
   // UDP será iniciado automaticamente em connectWiFiSTA() se conectar
   // ou em setupAP() se fazer fallback para AP
@@ -293,7 +333,6 @@ void loop()
   receiveMessage();
   if (!clientConnected)
   {
-    delay(50);
     return;
   }
 
@@ -308,5 +347,5 @@ void loop()
   {
     pcm_out[i] = s32_to_s16(i2s_in[i]);
   }
-  sendPCMUDP(pcm_out, samples32);
+  // sendPCMUDP(pcm_out, samples32);
 }
