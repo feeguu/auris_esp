@@ -77,6 +77,7 @@ void sendPCMUDP(int16_t *buffer, size_t sampleCount)
 
 // ======= I2S =======
 static const i2s_port_t I2S_PORT = I2S_NUM_0;
+Rect *speechTextRect = DisplayGetTextBounds("Fala");
 
 void setupI2S()
 {
@@ -197,7 +198,7 @@ void connectWiFiSTA()
     Serial.print("RSSI: ");
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
-    DisplayWrite("WiFi OK");
+    DisplayCenteredWrite("WiFi OK");
 
     // Inicia UDP apenas quando conectado
     udp.begin(udpPort);
@@ -234,8 +235,9 @@ void receiveMessage()
 
         break;
       case LABEL_TYPE:
+        DisplayClear();
         Serial.printf("Label: %s\n", (char *)packet.payload);
-        DisplayWrite((char *)packet.payload);
+        DisplayCenteredWrite((char *)packet.payload);
         break;
       case CONFIG_TYPE:
         Serial.printf("Config recebido\n");
@@ -245,7 +247,11 @@ void receiveMessage()
         Serial.printf("Reiniciando por comando\n");
         ESP.restart();
         break;
-
+      case CAPTIONS_TYPE:
+        DisplayClear();
+        DisplayWrite("Fala", 4, 0);
+        DisplayCenteredWrite((char *)packet.payload);
+        break;
       default:
         Serial.printf("packet desconhecido\n");
         break;

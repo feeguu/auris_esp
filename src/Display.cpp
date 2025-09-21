@@ -18,10 +18,18 @@ void DisplayInit()
   display.display();
 }
 
-void DisplayWrite(std::string text)
+void DisplayWrite(std::string text, int16_t x, int16_t y)
 {
-  display.clearDisplay();
+  display.setTextSize(2);
+  display.setTextColor(WHITE);
+  display.setCursor(x, y);
+  display.println(text.c_str());
 
+  display.display();
+}
+
+void DisplayCenteredWrite(std::string text)
+{
   display.setTextSize(2);
   display.setTextColor(WHITE);
 
@@ -36,4 +44,19 @@ void DisplayWrite(std::string text)
   display.println(text.c_str());
 
   display.display();
+}
+
+void DisplayClear()
+{
+  display.clearDisplay();
+  display.display();
+}
+
+Rect *DisplayGetTextBounds(std::string text)
+{
+  Rect *bounds = new Rect;
+  display.getTextBounds(text.c_str(), 0, 0, &bounds->x, &bounds->y, &bounds->w, &bounds->h);
+  bounds->x = (SCREEN_WIDTH - bounds->w) / 2;
+  bounds->y = (SCREEN_HEIGHT - bounds->h) / 2;
+  return bounds;
 }

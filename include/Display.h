@@ -16,7 +16,18 @@
 
 extern Adafruit_SSD1306 display;
 
+typedef struct Rect
+{
+  int16_t x;
+  int16_t y;
+  uint16_t w;
+  uint16_t h;
+} Rect;
+
 void DisplayInit();
-void DisplayWrite(std::string text);
+void DisplayWrite(std::string text, int16_t x, int16_t y);
+void DisplayCenteredWrite(std::string text);
+Rect *DisplayGetTextBounds(std::string text);
+void DisplayClear();
 
 #endif
