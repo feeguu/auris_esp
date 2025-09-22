@@ -13,17 +13,17 @@ enum AurisPacketType : uint32_t
   GET_CONFIG = 0x06
 };
 
-typedef struct AurisPacketHeader
+typedef struct
 {
   AurisPacketType type;
   uint32_t length;
-};
+} AurisPacketHeader;
 
-typedef struct AurisPacket
+typedef struct
 {
   AurisPacketHeader header;
   uint8_t *payload;
-};
+} AurisPacket;
 
 AurisPacket ProtocolHandlePacket(char *data);
 void ProtocolDeallocatePacket(AurisPacket &packet);
