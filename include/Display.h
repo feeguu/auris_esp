@@ -24,7 +24,7 @@ typedef struct Rect
   uint16_t h;
 } Rect;
 
-void DisplayInit();
+void DisplayInit(uint8_t size);
 void DisplayWrite(std::string text, int16_t x, int16_t y);
 void DisplayCenteredWrite(std::string text);
 Rect *DisplayGetTextBounds(std::string text);

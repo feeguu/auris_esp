@@ -3,7 +3,9 @@
 // Cria a instância global do display
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-void DisplayInit()
+int fontSize = 2;
+
+void DisplayInit(uint8_t size)
 {
   Wire.begin(SDA_PIN, SCL_PIN);
 
@@ -16,11 +18,19 @@ void DisplayInit()
 
   display.clearDisplay();
   display.display();
+  display.setTextSize(size);
+  display.setTextColor(WHITE);
+  display.setCursor(0, 0);
+}
+
+void DisplaySetFontSize(uint8_t size)
+{
+  fontSize = size;
+  display.setTextSize(size);
 }
 
 void DisplayWrite(std::string text, int16_t x, int16_t y)
 {
-  display.setTextSize(2);
   display.setTextColor(WHITE);
   display.setCursor(x, y);
   display.println(text.c_str());
@@ -30,7 +40,6 @@ void DisplayWrite(std::string text, int16_t x, int16_t y)
 
 void DisplayCenteredWrite(std::string text)
 {
-  display.setTextSize(2);
   display.setTextColor(WHITE);
 
   int16_t x1, y1;

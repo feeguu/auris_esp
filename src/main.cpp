@@ -13,12 +13,6 @@
 #include <HTTPClient.h>
 #include <HTTPUpdate.h>
 
-#define URL_FIRMWARE "https://github.com/feeguu/auris_esp/releases/latest/download/firmware.bin"
-
-// ======= Wi-Fi doméstico =======
-#define HOME_SSID "andre"
-#define HOME_PASS "mariana04112021"
-
 // AP
 
 #define AP_SSID "AURIS"
@@ -39,9 +33,24 @@
 #define CONNECT_MESSAGE "HELLO_AURIS"
 const int udpPort = 4210;
 
+AurisConfig config;
+
 WiFiUDP udp;
 IPAddress clientIP;
 bool clientConnected = false;
+
+const char *languages[] = {
+    "pt", // Português
+    "en", // English
+};
+
+// Fala em idiomas
+const char *speechs[] = {
+    "Fala",     // Português
+    "Speech",    // English
+};
+
+int langIndex = 0; // padrão pt
 
 // ======= Buffers =======
 static const size_t FRAMES_PER_PACKET = CHUNK_SAMPLES / 2;  // 512 int16 -> 256 frames
@@ -82,7 +91,7 @@ void sendPCMUDP(int16_t *buffer, size_t sampleCount)
 
 // ======= I2S =======
 static const i2s_port_t I2S_PORT = I2S_NUM_0;
-Rect *speechTextRect = DisplayGetTextBounds("Fala");
+Rect *speechTextRect;
 
 void setupI2S()
 {
@@ -149,7 +158,7 @@ void setupAP()
   udp.begin(udpPort); // necessário para receber o HELLO_AURIS
 }
 
-void connectWiFiSTA()
+void connectWiFiSTA(char *HOME_SSID, char *HOME_PASS)
 {
   // Desconecta e limpa configurações anteriores
   WiFi.disconnect(true);
@@ -217,12 +226,11 @@ void connectWiFiSTA()
   }
 }
 
-AurisConfig config;
 
 
 void forceUpdate() {
   WiFiClient client;
-  t_httpUpdate_return ret = httpUpdate.update(client, URL_FIRMWARE);
+  t_httpUpdate_return ret = httpUpdate.update(client, config.firmware_url);
   switch (ret) {
     case HTTP_UPDATE_FAILED:
       Serial.printf("Falha na atualização: %s\n", httpUpdate.getLastErrorString().c_str());
@@ -280,8 +288,12 @@ void receiveMessage()
         break;
       case CAPTIONS_TYPE:
         DisplayClear();
-        DisplayWrite("Fala", 4, 0);
-        DisplayCenteredWrite((char *)packet.payload);
+        if(config.captions_enabled) {
+          DisplayWrite(speechs[langIndex], 4, 0);
+          DisplayCenteredWrite((char *)packet.payload);
+        } else {
+          DisplayCenteredWrite(speechs[langIndex]);
+        }
         break;
       case GET_CONFIG:
       {
@@ -336,9 +348,21 @@ void setup()
   Serial.printf("Versão: %s\n", config.version);
   Serial.printf("URL firmware: %s\n", config.firmware_url);
 
-  DisplayInit();
+  DisplayInit(config.font_size);
 
-  connectWiFiSTA();
+  for (size_t i = 0; i < sizeof(languages) / sizeof(languages[0]); i++)
+  {
+    if (strcmp(config.language, languages[i]) == 0)
+    {
+      langIndex = i;
+      break;
+    }
+  }
+
+  Rect *speechTextRect = DisplayGetTextBounds(speechs[langIndex]);
+
+
+  connectWiFiSTA(config.ssid, config.password);
   // setupAP();
   sendAliveToBroadcast();
 
