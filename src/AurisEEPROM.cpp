@@ -26,7 +26,7 @@ void EEPROMInit()
     strcpy(defaultConfig.language, "pt");
     defaultConfig.font_size = 16;
     strcpy(defaultConfig.version, "1.0.0");
-    strcpy(defaultConfig.firmware_url, "http://auris.com.br/firmware");
+    strcpy(defaultConfig.firmware_url, "https://github.com/feeguu/auris_esp/releases/latest/download/firmware.bin");
     defaultConfig.captions_enabled = false;
 
     // Write using individual field approach
