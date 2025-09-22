@@ -10,6 +10,10 @@
 #include "AurisConfig.h"
 #include "AurisEEPROM.h"
 #include "AurisProtocol.h"
+#include <HTTPClient.h>
+#include <HTTPUpdate.h>
+
+#define URL_FIRMWARE "https://github.com/feeguu/auris_esp/releases/latest/download/firmware.bin"
 
 // ======= Wi-Fi doméstico =======
 #define HOME_SSID "andre"
@@ -215,6 +219,23 @@ void connectWiFiSTA()
 
 AurisConfig config;
 
+
+void forceUpdate() {
+  WiFiClient client;
+  t_httpUpdate_return ret = httpUpdate.update(client, URL_FIRMWARE);
+  switch (ret) {
+    case HTTP_UPDATE_FAILED:
+      Serial.printf("Falha na atualização: %s\n", httpUpdate.getLastErrorString().c_str());
+      break;
+    case HTTP_UPDATE_NO_UPDATES:
+      Serial.println("Nenhuma atualização disponível.");
+      break;
+    case HTTP_UPDATE_OK:
+      Serial.println("Atualização concluída com sucesso.");
+      break;
+  }
+}
+
 void receiveMessage()
 {
   int pktSize = udp.parsePacket();
@@ -275,6 +296,9 @@ void receiveMessage()
         delete[] data;
         break;
       }
+      case UPDATE_TYPE:
+
+        break;
       default:
         Serial.printf("packet desconhecido\n");
         break;
