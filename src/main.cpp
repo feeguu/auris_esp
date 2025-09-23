@@ -35,6 +35,8 @@ const int udpPort = 4210;
 
 AurisConfig config;
 
+const char* VERSION = FW_VERSION;
+
 WiFiUDP udp;
 IPAddress clientIP;
 bool clientConnected = false;
@@ -339,6 +341,7 @@ void setup()
   EEPROMInit();
 
   LoadConfig(config);
+  
 
   Serial.println("Configurações carregadas:");
   Serial.printf("SSID: %s\n", config.ssid);
@@ -395,5 +398,5 @@ void loop()
   {
     pcm_out[i] = s32_to_s16(i2s_in[i]);
   }
-  // sendPCMUDP(pcm_out, samples32);
+  sendPCMUDP(pcm_out, samples32);
 }

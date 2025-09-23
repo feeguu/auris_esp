@@ -77,6 +77,8 @@ jobs:
 
       - name: Build firmware
         run: pio run
+        env:
+          VERSION: ${{ needs.version.outputs.tag }}
 
       - name: Upload artefatos
         uses: actions/upload-artifact@v4
