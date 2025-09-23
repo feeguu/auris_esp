@@ -94,7 +94,7 @@ bool EEPROMReadConfig(AurisConfig &config)
     strcpy(config.password, "AURIS123");
     strcpy(config.language, "pt");
     config.font_size = 16;
-    strcpy(config.version, "1.0.0");
+    strcpy(config.version, FW_VERSION);
     strcpy(config.firmware_url, "http://auris.com.br/firmware");
     config.captions_enabled = false;
     return true; // Return true since we've set defaults
@@ -127,10 +127,8 @@ bool EEPROMReadConfig(AurisConfig &config)
   config.font_size = EEPROM.read(addr++);
 
   // Read version
-  for (int i = 0; i < MAX_VERSION_LENGTH; i++)
-  {
-    config.version[i] = EEPROM.read(addr++);
-  }
+  strcpy(config.version, FW_VERSION);
+  addr += MAX_VERSION_LENGTH;
 
   // Read firmware_url
   for (int i = 0; i < MAX_URL_LENGTH; i++)
@@ -176,7 +174,14 @@ bool EEPROMWriteConfig(const AurisConfig &config)
   // Write version
   for (int i = 0; i < MAX_VERSION_LENGTH; i++)
   {
-    EEPROM.write(addr++, config.version[i]);
+    if (i < strlen(FW_VERSION))
+    {
+      EEPROM.write(addr++, FW_VERSION[i]);
+    }
+    else
+    {
+      EEPROM.write(addr++, 0); // null padding
+    }
   }
 
   // Write firmware_url
