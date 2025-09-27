@@ -395,5 +395,5 @@ void loop()
   {
     pcm_out[i] = s32_to_s16(i2s_in[i]);
   }
-  // sendPCMUDP(pcm_out, samples32);
+  sendPCMUDP(pcm_out, samples32);
 }
